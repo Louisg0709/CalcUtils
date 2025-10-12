@@ -6,11 +6,13 @@ struct AlgebraicValue{
     char* VarNames;
     float* indicies;
     int NumVars;
+    int Simplified;
 };
 
 struct AlgebraicValue* CreateAlgebraicValue(float coefficient, char* vars, float* indicies, int num_vars);
 int DestroyAlgebraicValue(struct AlgebraicValue* value);
 void OutputAlgebraicValue(struct AlgebraicValue* value);
+void SimplifyAlgebraicValue(struct AlgebraicValue* value);
 
 struct AlgebraicValue* MultiplyAlgebraicValues(struct AlgebraicValue* value1, struct AlgebraicValue* value2);
 int ValuesCanBeAdded(struct AlgebraicValue* value1, struct AlgebraicValue* value2);
@@ -18,10 +20,12 @@ int ValuesCanBeAdded(struct AlgebraicValue* value1, struct AlgebraicValue* value
 struct Expression{
     int Length;
     struct AlgebraicValue** Values;
+    int Simplified;
 };
 
+void OutputExpression(struct Expression* expression);
 //struct Expression* CombineExpressions(struct Expression* expressions, int num); 
-struct Expression* SimplifyExpression(struct Expression* expression);
+void SimplifyExpression(struct Expression* expression);
 //struct Expression* MultiplyExpressions(struct Expression* expressions, int num)
 
 #endif
