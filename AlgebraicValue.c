@@ -94,7 +94,15 @@ struct AlgebraicValue* MultiplyAlgebraicValues(struct AlgebraicValue* value1, st
 void OutputAlgebraicValue(struct AlgebraicValue* value){
     printf("%.2f", value->Coefficient);
     for (int i = 0; i < value->NumVars; i++){
-        printf("*%c^%.2f",value->VarNames[i], value->indicies[i]);
+        if (value->VarNames[i] >= 'a' && value->VarNames[i] <= 'z') {
+            if (value->indicies[i] == 1.0f){
+                printf("*%c", value->VarNames[i]);
+            } else {
+                printf("*%c^%.2f", value->VarNames[i], value->indicies[i]);
+            }
+        } else {
+            printf("*[INVALID_VAR]^%.2f", value->indicies[i]);
+        }
     }
 }
 
@@ -107,6 +115,7 @@ void SimplifyExpression(struct Expression* expression){
         for (int x = 0; x < unique_count; x++){
             if (ValuesCanBeAdded(&unique_values[x], expression->Values[i])){
                 unique_values[x].Coefficient += expression->Values[i]->Coefficient;
+                duplicate = 1;
             }
         }
         if(!duplicate){
@@ -117,7 +126,6 @@ void SimplifyExpression(struct Expression* expression){
     }
     struct AlgebraicValue** new_values = malloc(sizeof(struct AlgebraicValue*) * unique_count);
     for (int i = 0; i <unique_count; i++){
-        new_values[i] = malloc(sizeof(struct AlgebraicValue));
         new_values[i] = CopyValue(&unique_values[i]);
     }
     free(unique_values);
@@ -126,63 +134,96 @@ void SimplifyExpression(struct Expression* expression){
     expression->Simplified = 1;
 }
 
-void SimplifyAlgebraicValue(struct AlgebraicValue* value){
-
-    //remove duplicates (coppied this from the multiply function)
-    //Make new array without duplicates and sum the indicies
-    char* unique_vars = malloc(sizeof(char)*value->NumVars);
-    float* unique_indicies = malloc(sizeof(float)*value->NumVars);
-    int unique_count = 0; 
-    for(int i = 0; i <value->NumVars; i++){
-        int found = 0;
-        for (int x = 0; x<unique_count; x++){
-            if (unique_vars[x] == value->VarNames[i]) {found = 1;}
-        }
-        if (!found){
-            unique_vars[unique_count] = value->VarNames[i];
-            float indicie_sum = value->indicies[i];
-            for (int x = i+1; x < value->NumVars; x++){
-                if (value->VarNames[i] == value->VarNames[x]){indicie_sum+=value->indicies[x];}
-            }
-            unique_indicies[unique_count] = indicie_sum;
-            unique_count += 1;
-        }
+void SimplifyAlgebraicValue(struct AlgebraicValue* value) {
+    if (value == NULL) return;
+    if (value->NumVars <= 0) {
+        /* ensure arrays are empty but valid */
+        free(value->VarNames);
+        free(value->indicies);
+        value->VarNames = NULL;
+        value->indicies = NULL;
+        value->NumVars = 0;
+        value->Simplified = 1;
+        return;
     }
-    //remove unused space
+
+    /* Temporary buffers sized to the original number of variables. */
+    char* unique_vars = malloc(sizeof(char) * value->NumVars);
+    float* unique_indicies = malloc(sizeof(float) * value->NumVars);
+    int unique_count = 0;
+
+    /* Build unique_vars and summed exponents. */
+    for (int i = 0; i < value->NumVars; ++i) {
+        char current_var = value->VarNames[i];
+
+        /* Check whether current_var is already in unique_vars. */
+        int already_added = 0;
+        for (int j = 0; j < unique_count; ++j) {
+            if (unique_vars[j] == current_var) {
+                already_added = 1;
+                break;
+            }
+        }
+        if (already_added) continue;
+
+        /* Sum all occurrences of current_var across the original arrays. */
+        float sum = 0.0f;
+        for (int j = 0; j < value->NumVars; ++j) {
+            if (value->VarNames[j] == current_var) {
+                sum += value->indicies[j];
+            }
+        }
+
+        unique_vars[unique_count] = current_var;
+        unique_indicies[unique_count] = sum;
+        unique_count++;
+    }
+
+    /* Free the old arrays that value owned. */
     free(value->VarNames);
     free(value->indicies);
-    char* final_vars = malloc(sizeof(char) * unique_count);
-    float* final_indicies = malloc(sizeof(float) * unique_count);
-    for (int i = 0; i < unique_count; i++){
-        final_vars[i] = unique_vars[i];
-        final_indicies[i] = unique_indicies[i];
+
+    /* Allocate arrays sized to the unique count (could be zero). */
+    char* final_vars = NULL;
+    float* final_indicies = NULL;
+    if (unique_count > 0) {
+        final_vars = malloc(sizeof(char) * unique_count);
+        final_indicies = malloc(sizeof(float) * unique_count);
+        for (int i = 0; i < unique_count; ++i) {
+            final_vars[i] = unique_vars[i];
+            final_indicies[i] = unique_indicies[i];
+        }
     }
+
     free(unique_vars);
     free(unique_indicies);
 
-    //Now sort arrays using bubble sort to enable easy comparisons
-    int swap_made = 1;
-    while(swap_made){
-        swap_made = 0;
-        for (int i = 0; i < unique_count - 1; i++){
-            if (final_vars[i] > final_vars[i+1]){
-                char char_temp = final_vars[i];
-                final_vars[i] = final_vars[i+1];
-                final_vars[i+1] = char_temp;
-
-                float float_temp = final_indicies[i];
-                final_indicies[i] = final_indicies[i+1];
-                final_indicies[i+1] = float_temp;
-
-                swap_made = 1;
+    /* Sort final arrays (alphabetical) while keeping exponents aligned. */
+    if (unique_count > 1) {
+        int swap_made = 1;
+        while (swap_made) {
+            swap_made = 0;
+            for (int i = 0; i < unique_count - 1; ++i) {
+                if (final_vars[i] > final_vars[i + 1]) {
+                    char ctmp = final_vars[i];
+                    final_vars[i] = final_vars[i + 1];
+                    final_vars[i + 1] = ctmp;
+                    float ftmp = final_indicies[i];
+                    final_indicies[i] = final_indicies[i + 1];
+                    final_indicies[i + 1] = ftmp;
+                    swap_made = 1;
+                }
             }
         }
     }
+
     value->VarNames = final_vars;
     value->indicies = final_indicies;
     value->NumVars = unique_count;
     value->Simplified = 1;
 }
+
+
 
 int ValuesCanBeAdded(struct AlgebraicValue* value1, struct AlgebraicValue* value2){
     if (!value1->Simplified){SimplifyAlgebraicValue(value1);}
@@ -211,9 +252,11 @@ struct Expression* MultiplyExpressions(struct Expression* expression1, struct Ex
 }
 
 void DestroyExpression(struct Expression* expression){
-    for (int i = 0; i < expression->Length; i++){free(expression->Values[i]);}
+    for (int i = 0; i < expression->Length; i++){DestroyAlgebraicValue(expression->Values[i]);}
+    free(expression->Values);
     free(expression);
 }
+
 
 void OutputExpression(struct Expression* expression)
 {
@@ -228,27 +271,23 @@ struct Expression* CombineExpressions(struct Expression* e1, struct Expression* 
     struct Expression* result = malloc(sizeof(struct Expression));
     result->Length = e1->Length + e2->Length;
     result->Values = malloc(sizeof(struct AlgebraicValue*)*result->Length);
-    for (int i = 0; i < e1->Length; i++){
-        result->Values[i] = malloc(sizeof(struct AlgebraicValue));
-        result->Values[i] = CopyValue(e1->Values[i]);
-    }
-    for (int i = 0; i < e2->Length; i++){
-        result->Values[e1->Length+i] = malloc(sizeof(struct AlgebraicValue));
-        result->Values[e1->Length+i] = CopyValue(e2->Values[i]);
-    }
+    for (int i = 0; i < e1->Length; i++) { result->Values[i] = CopyValue(e1->Values[i]); }
+    for (int i = 0; i < e2->Length; i++) {result->Values[e1->Length + i] = CopyValue(e2->Values[i]);}
     SimplifyExpression(result);
     return(result);
 }
 
 struct AlgebraicValue* CopyValue(struct AlgebraicValue* value){
-    char* copied_vars = malloc(sizeof(char)*value->NumVars);
-    float* copied_indicies = malloc(sizeof(float)*value->NumVars);
-    for (int i = 0; i < value->NumVars; i++){
+    if (!value->Simplified) {SimplifyAlgebraicValue(value);}
+    char* copied_vars = malloc(sizeof(char) * value->NumVars);
+    float* copied_indicies = malloc(sizeof(float) * value->NumVars);
+    for (int i = 0; i < value->NumVars; i++) {
         copied_vars[i] = value->VarNames[i];
         copied_indicies[i] = value->indicies[i];
     }
     return CreateAlgebraicValue(value->Coefficient, copied_vars, copied_indicies, value->NumVars);
 }
+
 
 struct Expression* CreateSingleValExpression(struct AlgebraicValue* val){
     struct Expression* new = malloc(sizeof(struct Expression));
