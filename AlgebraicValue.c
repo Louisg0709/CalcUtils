@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "AlgebraicValue.h"
 
 int main(){
     //Test multipling values
+    //Create 2xy
     char* vars1 = malloc(sizeof(char) * 2);
     vars1[0] = 'x';
     vars1[1] = 'y';
@@ -14,6 +16,8 @@ int main(){
     struct AlgebraicValue* val1 = CreateAlgebraicValue(2,vars1,indicies1,2);
     OutputAlgebraicValue(val1);
     printf("\n");
+
+    //Create 3x^2w^6
     char* vars2 = malloc(sizeof(char) * 2);
     vars2[0] = 'x';
     vars2[1] = 'w';
@@ -23,15 +27,30 @@ int main(){
     struct AlgebraicValue* val2 = CreateAlgebraicValue(3,vars2,indicies2,2);
     OutputAlgebraicValue(val2);
     printf("\n");
+
     struct AlgebraicValue* result = MultiplyAlgebraicValues(val1, val2);
     printf("Result: ");
     OutputAlgebraicValue(result);
-    DestroyAlgebraicValue(val1);
-    DestroyAlgebraicValue(val2);
-    
-    //test adding values
-    
+    printf("\n");
 
+    //Create expression
+    struct Expression* eVal1 = CreateSingleValExpression(val1);
+    OutputExpression(eVal1);
+    printf("\n");
+    struct Expression* eVal2 = CreateSingleValExpression(val2);
+    OutputExpression(eVal2);
+    printf("\n");
+    struct Expression* eValS = CombineExpressions(eVal1, eVal2);
+    OutputExpression(eValS);
+
+    struct Expression* eValSSquare = MultiplyExpressions(eValS,eValS);
+    printf("\n");
+    OutputExpression(eValSSquare);
+
+    DestroyExpression(eValSSquare);
+    DestroyExpression(eValS);
+    DestroyExpression(eVal2);
+    DestroyExpression(eVal1);
     DestroyAlgebraicValue(result);
 }
 
@@ -69,7 +88,7 @@ struct AlgebraicValue* MultiplyAlgebraicValues(struct AlgebraicValue* value1, st
         all_indicies[value1->NumVars + i] = value2->indicies[i];
     }
     
-    struct AlgebraicValue* result = CreateAlgebraicValue(value1->Coefficient*value2->Coefficient, all_vars, all_indicies, total);
+    return CreateAlgebraicValue(value1->Coefficient*value2->Coefficient, all_vars, all_indicies, total);
 }
 
 void OutputAlgebraicValue(struct AlgebraicValue* value){
@@ -88,18 +107,18 @@ void SimplifyExpression(struct Expression* expression){
         for (int x = 0; x < unique_count; x++){
             if (ValuesCanBeAdded(&unique_values[x], expression->Values[i])){
                 unique_values[x].Coefficient += expression->Values[i]->Coefficient;
-                duplicate = 1;
             }
         }
         if(!duplicate){
             unique_values[unique_count] = *expression->Values[i];
+            unique_count++;
         }
         DestroyAlgebraicValue(expression->Values[i]);
     }
     struct AlgebraicValue** new_values = malloc(sizeof(struct AlgebraicValue*) * unique_count);
     for (int i = 0; i <unique_count; i++){
         new_values[i] = malloc(sizeof(struct AlgebraicValue));
-        *new_values[i] = unique_values[i];
+        new_values[i] = CopyValue(&unique_values[i]);
     }
     free(unique_values);
     expression->Values = new_values;
@@ -140,28 +159,28 @@ void SimplifyAlgebraicValue(struct AlgebraicValue* value){
     }
     free(unique_vars);
     free(unique_indicies);
-    value->VarNames = final_vars;
-    value->indicies = final_indicies;
-    value->NumVars = unique_count;
 
     //Now sort arrays using bubble sort to enable easy comparisons
     int swap_made = 1;
     while(swap_made){
         swap_made = 0;
         for (int i = 0; i < unique_count - 1; i++){
-            if (unique_vars[i] > unique_vars[i+1]){
-                char char_temp = unique_vars[i];
-                unique_vars[i] = unique_vars[i+1];
-                unique_vars[i+1] = char_temp;
+            if (final_vars[i] > final_vars[i+1]){
+                char char_temp = final_vars[i];
+                final_vars[i] = final_vars[i+1];
+                final_vars[i+1] = char_temp;
 
-                float float_temp = unique_indicies[i];
-                unique_indicies[i] = unique_indicies[i+1];
-                unique_indicies[i+1] = float_temp;
+                float float_temp = final_indicies[i];
+                final_indicies[i] = final_indicies[i+1];
+                final_indicies[i+1] = float_temp;
 
-                int swap_made = 1;
+                swap_made = 1;
             }
         }
     }
+    value->VarNames = final_vars;
+    value->indicies = final_indicies;
+    value->NumVars = unique_count;
     value->Simplified = 1;
 }
 
@@ -177,3 +196,82 @@ int ValuesCanBeAdded(struct AlgebraicValue* value1, struct AlgebraicValue* value
     return same;
 }   
 
+struct Expression* MultiplyExpressions(struct Expression* expression1, struct Expression* expression2){
+    int total_size = expression1->Length*expression2->Length;
+    struct Expression* result = malloc(sizeof(struct Expression));
+    result->Length = total_size;
+    result->Values = malloc(sizeof(struct AlgebraicValue*) * total_size);
+    int count = 0;
+    for (int x = 0; x < expression1->Length; x++){for (int y = 0; y < expression2->Length; y++){
+        result->Values[count] = MultiplyAlgebraicValues(expression1->Values[x],expression2->Values[y]);
+        count+=1;
+    }}
+    SimplifyExpression(result);
+    return result;
+}
+
+void DestroyExpression(struct Expression* expression){
+    for (int i = 0; i < expression->Length; i++){free(expression->Values[i]);}
+    free(expression);
+}
+
+void OutputExpression(struct Expression* expression)
+{
+    OutputAlgebraicValue(expression->Values[0]);
+    for (int i = 1; i < expression->Length; i++){
+        printf("+");
+        OutputAlgebraicValue(expression->Values[i]);
+    }
+}
+
+struct Expression* CombineExpressions(struct Expression* e1, struct Expression* e2){
+    struct Expression* result = malloc(sizeof(struct Expression));
+    result->Length = e1->Length + e2->Length;
+    result->Values = malloc(sizeof(struct AlgebraicValue*)*result->Length);
+    for (int i = 0; i < e1->Length; i++){
+        result->Values[i] = malloc(sizeof(struct AlgebraicValue));
+        result->Values[i] = CopyValue(e1->Values[i]);
+    }
+    for (int i = 0; i < e2->Length; i++){
+        result->Values[e1->Length+i] = malloc(sizeof(struct AlgebraicValue));
+        result->Values[e1->Length+i] = CopyValue(e2->Values[i]);
+    }
+    SimplifyExpression(result);
+    return(result);
+}
+
+struct AlgebraicValue* CopyValue(struct AlgebraicValue* value){
+    char* copied_vars = malloc(sizeof(char)*value->NumVars);
+    float* copied_indicies = malloc(sizeof(float)*value->NumVars);
+    for (int i = 0; i < value->NumVars; i++){
+        copied_vars[i] = value->VarNames[i];
+        copied_indicies[i] = value->indicies[i];
+    }
+    return CreateAlgebraicValue(value->Coefficient, copied_vars, copied_indicies, value->NumVars);
+}
+
+struct Expression* CreateSingleValExpression(struct AlgebraicValue* val){
+    struct Expression* new = malloc(sizeof(struct Expression));
+    new->Length = 1;
+    new->Simplified = 1;
+    new->Values = malloc(sizeof(struct AlgebraicValue*));
+    new->Values[0] = val;
+    return new;
+}
+
+//In progress
+/*
+struct Expression* EvaluateString(char* text){
+    struct Expression* result = malloc(sizeof(struct Expression));
+    result->Length = 0;
+
+    int len = strlen(text);
+    int pointy = 0;
+
+    struct Expression* new = malloc(sizeof(struct Expression));
+    new->Length = 0;
+    while(pointy<len){
+        
+    }
+}
+*/
