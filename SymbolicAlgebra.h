@@ -12,11 +12,11 @@ struct AlgebraicValue{
     float Indicies[52];
 };
 //AlgebraicValue functions
-struct AlgerbraicValue*  MultiplyAlgebraicValues(struct AlgebraicValue* val1, struct AlgebraicValue* val2);
-int AlgebraicValueToString(struct AlgebraicValue* value, char* string);
+struct AlgebraicValue* MultiplyAlgebraicValues(struct AlgebraicValue* val1, struct AlgebraicValue* val2);
+int AlgebraicValueToString(struct AlgebraicValue* value, char* string, size_t length); //Returns 0 if function fails
 
 struct Polynomial{
-    AlgerbraicValue* Values;
+    struct AlgebraicValue* Values;
     int NumValues;
     int Simplified;
 };
@@ -40,6 +40,7 @@ int AddItemToPolynomialList(struct Polynomial* new_item, struct PolynomialListNo
 
 //Utilities
 int CharToIndex(char val);
+char IndexToChar(int i);
 
 
 
