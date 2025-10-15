@@ -20,9 +20,10 @@ struct Polynomial{
     int NumValues;
     int Simplified;
 };
+
 //Polynomial functions
-struct Polynomial* CreateAlgebraicValue(float coefficient, int num_vars, struct VarData* var_data);
-int DestroyPolynomial(struct Polynomial* val);
+struct Polynomial* CreateAlgebraicValue(float coefficient, struct VarData* var_data, int num_vars);
+void DestroyPolynomial(struct Polynomial* val);
 
 int SimplifyPolynomial(struct Polynomial* polynomial);
 struct Polynomial* AddPolynomials(struct Polynomial* polynomials, int num);
@@ -41,6 +42,8 @@ int AddItemToPolynomialList(struct Polynomial* new_item, struct PolynomialListNo
 //Utilities
 int CharToIndex(char val);
 char IndexToChar(int i);
+
+int CompareFloatArrays(float* arr, float* arr2, int len);
 
 
 
