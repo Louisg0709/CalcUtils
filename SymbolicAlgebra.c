@@ -7,7 +7,8 @@
 
 int main(){
     char buffer[200];
-    scanf("%s", buffer); //Apparently deprecated :-/
+    scanf("%s", buffer); //Apparently deprecated :-(
+    //Really ought to find out the alternative to scan f.
     struct Polynomial* test = InterpretValue(buffer, 200);
     memset(buffer, 0, sizeof buffer);
     if((PolynomialToString(test, buffer, 200)).ResultCode){
@@ -95,6 +96,22 @@ struct ToStringResult AlgebraicValueToString(struct AlgebraicValue* value, char*
 Polynomial functions
 */
 
+struct Polynomial* CreatePolynomial(struct AlgebraicValue* vals, int num){
+    struct Polynomial* result = malloc(sizeof(struct Polynomial));
+    
+    result->Simplified = 0;
+    result->NumValues = num;
+    result->Values = malloc(sizeof(struct AlgebraicValue)*num);
+
+    for (int i = 0; i < num; i++){
+        result->Values[i] = vals[i];
+    }
+
+    SimplifyPolynomial(result);
+    return result;
+}
+
+
 struct Polynomial* CreateAlgebraicValue(float coefficient, struct VarData* var_data, int num_vars){
     struct Polynomial* result = malloc(sizeof(struct Polynomial));
 
@@ -107,7 +124,7 @@ struct Polynomial* CreateAlgebraicValue(float coefficient, struct VarData* var_d
     for (int i = 0; i<num_vars; i++){
         int index = CharToIndex(var_data[i].Var);
         if (index!=-1){ //Variable is ignored if char is invalid
-            result->Values[0].Indicies[CharToIndex(var_data[i].Var)] = var_data->Val;
+            result->Values[0].Indicies[CharToIndex(var_data[i].Var)] += var_data->Val;
         }
     }
 
@@ -230,11 +247,13 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     if (length <= 0) return NULL;
 
     float coefficient = 1;
+    float vars[52];
+    InitialiseFloatArrayToZero(vars, 52);
 
     int pointer = 0;
 
     //Get coefficient
-    if(isdigit(buffer[0])){
+    if(isdigit(buffer[0]) || buffer[0] == '-'){
         int coefficient_len = 1;
 
         int point_not_found = 1;
@@ -250,11 +269,19 @@ struct Polynomial* InterpretValue(char* buffer, int length){
             }
         }
         coefficient = ExtractFloatFromString(buffer, coefficient_len-1);
+        pointer += coefficient_len;
     }
+    
+    //Current plan is:
+    //1. Iterate through buffer and whenever a letter is find write the index to a queue of ints
+    //2. For each letter check the indexes between itself and the next letter (or the end of the string if the queue is empty)
+    //3. Maybe add the read float logic into a new function
+    //4. Use letter to get index in vars and add float that gets read to the index.
 
-    return CreateAlgebraicValue(coefficient, NULL, 0); //temp while still being implemented
-
-    //Get variables
+    struct AlgebraicValue val;
+    val.Coefficient = coefficient;
+    for (int i = 0; i <52; i++){val.Indicies[i]=vars[i];}
+    return CreatePolynomial(&val, 1);
 }
 
 /*
@@ -323,6 +350,48 @@ void llp_Destroy(struct llp_Node* start){
     }
 }
 
+void qi_Enqueue(struct qi_Node* root, int val){
+    if (root->ValEmpty){
+        root->Val = val;
+        root->ValEmpty = 0;
+        return;
+    }
+    if (root->Next){
+        qi_Enqueue(root->Next, val);
+        return;
+    }
+    root->Next = malloc(sizeof(struct qi_Node));
+    root->Next->Val = val;
+    root->Next->ValEmpty = 0;
+    root->Next->Next = NULL;
+}
+struct qi_DequeueResult qi_Dequeue(struct qi_Node* root){
+    struct qi_DequeueResult result;
+    if(root->ValEmpty){
+        result.Code = 0;
+        result.Val = 0;
+        result.NewRoot = root;
+        return result;
+    }
+    result.Code = 1;
+    result.Val = root->Val;
+    if(root->Next){
+        result.NewRoot = root->Next;
+        free(root);
+        return result;
+    }
+    root->ValEmpty = 1;
+    result.NewRoot = root;
+    return result;
+}
+
+void qi_Destroy(struct qi_Node* root){
+    if (root->Next){
+        qi_Destroy(root->Next);
+    }
+    free(root);
+}
+
 /*
 Utilities
 */
@@ -345,6 +414,12 @@ int CompareFloatArrays(float* arr, float* arr2, int len){
         if (arr[i] != arr2[i]){return 0;}
     }
     return 1;
+}
+
+void InitialiseFloatArrayToZero(float* arr, int len){
+    for (int i = 0; i < len; i++){
+        arr[i] = 0;
+    }
 }
 
 float ExtractFloatFromString(char* buffer, int end_index){
