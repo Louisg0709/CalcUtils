@@ -1,39 +1,24 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "SymbolicAlgebra.h"
 
 int main(){
-    struct VarData x;
-    x.Var = 'x';
-    x.Val = 1;
-    struct VarData y;
-    y.Var = 'y';
-    y.Val = 1;
-    
-    struct Polynomial* px = CreateAlgebraicValue(1,&x,1);
-    struct Polynomial* py = CreateAlgebraicValue(1,&y,1);
-    struct Polynomial* addition_test = AddPolynomials(px,py);
-    struct Polynomial* square_test = MultiplyPolynomials(addition_test, addition_test);
-    struct Polynomial* scalar = CreateAlgebraicValue(5, NULL, 0);
-    struct Polynomial* scale_test = MultiplyPolynomials(square_test, scalar);
-
     char buffer[200];
-    if(PolynomialToString(addition_test, buffer, 200).ResultCode){printf("%s\n", buffer);}
+    scanf("%s", buffer); //Apparently deprecated :-/
+    struct Polynomial* test = InterpretValue(buffer, 200);
     memset(buffer, 0, sizeof buffer);
-    if(PolynomialToString(square_test, buffer, 200).ResultCode){printf("%s\n", buffer);}    
-    memset(buffer, 0, sizeof buffer);
-    if(PolynomialToString(scale_test, buffer, 200).ResultCode){printf("%s\n", buffer);}    
-    memset(buffer, 0, sizeof buffer);
-
-    DestroyPolynomial(px);
-    DestroyPolynomial(py);
-    DestroyPolynomial(addition_test);
-    DestroyPolynomial(square_test);
-    DestroyPolynomial(scalar);
-    DestroyPolynomial(scale_test);
+    if((PolynomialToString(test, buffer, 200)).ResultCode){
+        printf("%s\n", buffer);
+    }
+    DestroyPolynomial(test);
 }
+
+/*
+AlgebraicValueFunctions
+*/
 
 struct AlgebraicValue* MultiplyAlgebraicValues(struct AlgebraicValue* val1, struct AlgebraicValue* val2){
     struct AlgebraicValue* result = malloc(sizeof(struct AlgebraicValue));
@@ -71,7 +56,7 @@ struct ToStringResult AlgebraicValueToString(struct AlgebraicValue* value, char*
         return data;
     }
 
-    if (value->Coefficient!=1 && indicie_found){
+    if (value->Coefficient!=1 || !indicie_found){
         //In future could make function to truncate 0s from floats
         written = snprintf(buffer, length, "%.2f", value->Coefficient); 
         if (written<0 || written>= length - data.Pointer){
@@ -105,6 +90,10 @@ struct ToStringResult AlgebraicValueToString(struct AlgebraicValue* value, char*
     data.ResultCode = 1;
     return data;
 }
+
+/*
+Polynomial functions
+*/
 
 struct Polynomial* CreateAlgebraicValue(float coefficient, struct VarData* var_data, int num_vars){
     struct Polynomial* result = malloc(sizeof(struct Polynomial));
@@ -219,13 +208,14 @@ struct ToStringResult PolynomialToString(struct Polynomial* poly, char* buffer, 
     data.Pointer += sub.Pointer;
 
     for (int i = 1; i < poly->NumValues; i++) {
-        written = snprintf(buffer + data.Pointer, length - data.Pointer, "%c", '+');
-        if (written < 0 || written >= (int)(length - data.Pointer)) {
-            data.ResultCode = 0;
-            return data;
+        if(poly->Values[i].Coefficient > 0){
+            written = snprintf(buffer + data.Pointer, length - data.Pointer, "%c", '+');
+            if (written < 0 || written >= (int)(length - data.Pointer)) {
+                data.ResultCode = 0;
+                return data;
+            }
+            data.Pointer += written;
         }
-        data.Pointer += written;
-
         sub = AlgebraicValueToString(&poly->Values[i], buffer + data.Pointer, length - data.Pointer);
         if (!sub.ResultCode) return sub;
         data.Pointer += sub.Pointer;
@@ -234,44 +224,108 @@ struct ToStringResult PolynomialToString(struct Polynomial* poly, char* buffer, 
 
     data.ResultCode = 1;
     return data;
-    
-/*
-    int written = snprintf(buffer, length, "%.2f", value->Coefficient); 
-    if (written<0 || written>= length - pointer){return 0;}
-    pointer+=written;
-*/
-}
-/*
-struct PolynomialListNode* CreateInititalPolynomialListNode(){
-    struct PolynomialListNode* new_node = malloc(sizeof(struct PolynomialListNode));
-    new_node->Next = NULL;
-    new_node->Polynomial = NULL; 
-    return new_node;
 }
 
-void DestroyPolynomialList(struct PolynomialListNode* start){
-    if (start->Next){
-        DestroyPolynomialList(start->Next);
-        if (start->Polynomial){
-            DestroyPolynomial(start->Polynomial);
+struct Polynomial* InterpretValue(char* buffer, int length){
+    if (length <= 0) return NULL;
+
+    float coefficient = 1;
+
+    int pointer = 0;
+
+    //Get coefficient
+    if(isdigit(buffer[0])){
+        int coefficient_len = 1;
+
+        int point_not_found = 1;
+        int getting_coefficient_len = 1;
+        while (getting_coefficient_len && coefficient_len<length){
+            if(isdigit(buffer[coefficient_len])){
+                coefficient_len ++;
+            }else if (buffer[coefficient_len] == '.' && point_not_found){
+                point_not_found = 0;
+                coefficient_len++;
+            }else{
+                getting_coefficient_len = 0;
+            }
         }
+        coefficient = ExtractFloatFromString(buffer, coefficient_len-1);
     }
-    if (start->Polynomial){DestroyPolynomial(start->Polynomial);}
-    free(start);
-    return;
+
+    return CreateAlgebraicValue(coefficient, NULL, 0); //temp while still being implemented
+
+    //Get variables
 }
 
-void AddItemToPolynomialList(struct Polynomial* new_item, struct PolynomialListNode* start){
-   struct PolynomialListNode* new = malloc(sizeof(struct PolynomialListNode));
-   new->Polynomial = new_item;
-   GetEndOfPolynomialList(start)->Next = new;
+/*
+Linked Lists
+*/
+//float
+void llf_Output(struct llf_Node* start){
+    if(start->val){
+        printf("%f\n", *start->val);
+    }
+    if(start->next){
+        llf_Output(start->next);
+    }
 }
 
-struct PolynomialListNode* GetEndOfPolynomialList(struct PolynomialListNode* start){
-    if (start->Next) return GetEndOfPolynomialList(start->Next);
-    return start;
+void llf_Push(struct llf_Node* start, float* new_val){
+    if(!start->val){
+        start->val = new_val;
+        return;
+    }
+    if(start->next){
+        llf_Push(start->next, new_val);
+        return;
+    }
+    start->next = malloc(sizeof(struct llf_Node));
+    start->next->next = NULL;
+    start->next->val = new_val;
 }
-    */
+
+void llf_Destroy(struct llf_Node* start){
+    if(start->next){
+        llf_Destroy(start->next);
+    }
+    if(start->val){
+        free(start->val);
+    }
+    if(start){
+        free(start);
+    }
+}
+
+//polynomial
+void llp_Push(struct llp_Node* start, struct Polynomial* new_val){
+    if(!start->val){
+        start->val = new_val;
+        return;
+    }
+    if(start->next){
+        llp_Push(start->next, new_val);
+        return;
+    }
+    start->next = malloc(sizeof(struct llp_Node));
+    start->next->next = NULL;
+    start->next->val = new_val;
+}
+
+void llp_Destroy(struct llp_Node* start){
+    if(start->next){
+        llp_Destroy(start->next);
+    }
+    if(start->val){
+        DestroyPolynomial(start->val);
+    }
+    if(start){
+        free(start);
+    }
+}
+
+/*
+Utilities
+*/
 
 int CharToIndex(char val){
     int int_val = (int)val;
@@ -291,4 +345,13 @@ int CompareFloatArrays(float* arr, float* arr2, int len){
         if (arr[i] != arr2[i]){return 0;}
     }
     return 1;
+}
+
+float ExtractFloatFromString(char* buffer, int end_index){
+    char* endptr;
+    char saved = buffer[end_index+1];
+    buffer[end_index+1] = '\0'; //Nullterminate string 
+    float val = strtof(buffer, &endptr);
+    buffer[end_index+1] = saved; //Restore buffers original state
+    return val;
 }
