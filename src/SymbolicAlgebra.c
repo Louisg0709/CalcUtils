@@ -6,18 +6,6 @@
 #include "SymbolicAlgebra.h"
 #include "MyDataStructures.h"
 
-int main(){
-    char buffer[200];
-    scanf("%s", buffer); //Apparently deprecated :-(
-    //Really ought to find out the alternative to scan f.
-    struct Polynomial* test = InterpretValue(buffer, 200);
-    memset(buffer, 0, sizeof buffer);
-    if((PolynomialToString(test, buffer, 200)).ResultCode){
-        printf("%s\n", buffer);
-    }
-    DestroyPolynomial(test);
-}
-
 /*
 AlgebraicValueFunctions
 */
@@ -278,6 +266,28 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     //2. For each letter check the indexes between itself and the next letter (or the end of the string if the queue is empty)
     //3. Maybe add the read float logic into a new function
     //4. Use letter to get index in vars and add float that gets read to the index.
+
+    struct qi_Node* var_indexes = malloc(sizeof(struct qi_Node));
+    var_indexes->Next = NULL;
+    var_indexes->ValEmpty=1;
+
+    while (pointer<length){
+        if(isalpha(buffer[pointer])){
+            qi_Enqueue(var_indexes, pointer);
+        }
+        pointer++;
+    }
+
+    int emptying_queue = 1;
+    while(emptying_queue){
+        struct qi_DequeueResult result = qi_Dequeue(var_indexes);
+        var_indexes = result.NewRoot;
+        if(result.Code){
+            printf("%d", result.Val);
+        }else{
+            emptying_queue = 0;
+        }
+    }
 
     struct AlgebraicValue val;
     val.Coefficient = coefficient;

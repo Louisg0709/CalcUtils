@@ -102,6 +102,7 @@ struct qi_DequeueResult qi_Dequeue(struct qi_Node* root){
     }
     root->ValEmpty = 1;
     result.NewRoot = root;
+    result.Val = root->Val;
     return result;
 }
 
