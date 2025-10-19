@@ -113,7 +113,7 @@ struct Polynomial* CreateAlgebraicValue(float coefficient, struct VarData* var_d
     for (int i = 0; i<num_vars; i++){
         int index = CharToIndex(var_data[i].Var);
         if (index!=-1){ //Variable is ignored if char is invalid
-            result->Values[0].Indicies[CharToIndex(var_data[i].Var)] += var_data->Val;
+            result->Values[0].Indicies[index] += var_data[i].Val;
         }
     }
 
@@ -242,7 +242,7 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     int pointer = 0;
 
     //Get coefficient
-    if(isdigit(buffer[0]) || buffer[0] == '-'){
+    if(isdigit(buffer[0]) || buffer[0] == '-' || buffer[0] == '+'){
         int coefficient_len = 1;
 
         int point_not_found = 1;
@@ -267,32 +267,56 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     //3. Maybe add the read float logic into a new function
     //4. Use letter to get index in vars and add float that gets read to the index.
 
+    int first_var_index = pointer;
+
     struct qi_Node* var_indexes = malloc(sizeof(struct qi_Node));
     var_indexes->Next = NULL;
     var_indexes->ValEmpty=1;
-
+    
+    int num_vars = 0;
     while (pointer<length){
         if(isalpha(buffer[pointer])){
             qi_Enqueue(var_indexes, pointer);
+            num_vars++;
         }
         pointer++;
     }
 
-    int emptying_queue = 1;
-    while(emptying_queue){
+    struct VarData* var_arr = malloc(sizeof(struct VarData)*num_vars);
+    for (int i = 0; i < num_vars; i++){
         struct qi_DequeueResult result = qi_Dequeue(var_indexes);
-        var_indexes = result.NewRoot;
-        if(result.Code){
-            printf("%d", result.Val);
+        var_arr[i].Var = buffer[result.Val];
+        if (result.NewRoot != var_indexes){
+            var_indexes = result.NewRoot;
+            if(result.Code == 0) return NULL;
+            if(i == 0){
+                if(result.Val!=first_var_index) return NULL;
+            }
+            
+            if (var_indexes != NULL){
+                if (buffer[result.Val+1] == '^'){
+                    var_arr[i].Val = ExtractFloatFromString(buffer+result.Val+2, var_indexes->Val-1);
+                }else{
+                    var_arr[i].Val = 1;
+                }
+            }
         }else{
-            emptying_queue = 0;
+            if(result.Val+2<length){
+                if (buffer[result.Val+1] == '^'){
+                    var_arr[i].Val = ExtractFloatFromString(buffer+result.Val + 2, length-1);
+                }else{
+                    var_arr[i].Val = 1;
+                }
+            }else{
+                var_arr[i].Val = 1;
+            }
         }
     }
+    free(var_indexes);
 
-    struct AlgebraicValue val;
-    val.Coefficient = coefficient;
-    for (int i = 0; i <52; i++){val.Indicies[i]=vars[i];}
-    return CreatePolynomial(&val, 1);
+    struct Polynomial* new_polynomial = CreateAlgebraicValue(coefficient, var_arr, num_vars);
+    free(var_arr);
+    return new_polynomial;
 }
 
 /*
@@ -302,7 +326,7 @@ Utilities
 int CharToIndex(char val){
     int int_val = (int)val;
     if (int_val>=97 && int_val < 123){return int_val-97;}
-    if (int_val>=65 && int_val < 91){return - 65 + 26;}
+    if (int_val>=65 && int_val < 91){return int_val- 65 + 26;}
     return -1; //Invalid input
 }
 
@@ -326,6 +350,12 @@ void InitialiseFloatArrayToZero(float* arr, int len){
 }
 
 float ExtractFloatFromString(char* buffer, int end_index){
+    //Handle special cases first ('-' or '+' with no numbers)
+    if (end_index == 0){
+        if (buffer[0] == '+') return 1.0;
+        if (buffer[0] == '-') return -1.0;
+    }
+
     char* endptr;
     char saved = buffer[end_index+1];
     buffer[end_index+1] = '\0'; //Nullterminate string 
