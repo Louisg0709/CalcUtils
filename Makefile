@@ -37,4 +37,4 @@ DataStructureTests: $(OBJ) $(TEST_OBJ_DS)
 all: AlgebraTest DataStructureTests
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(IDIR)/*~ SymbolicAlgebra DataStructureTests
+	rm -f $(ODIR)/*.o *~ core $(IDIR)/*~ AlgebraTest DataStructureTests
