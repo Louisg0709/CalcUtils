@@ -35,13 +35,16 @@ struct ToStringResult AlgebraicValueToString(struct AlgebraicValue* value, char*
     }
 
     if (value->Coefficient == 0){
-        written = snprintf(buffer, length, "0");
+        /*
+        written = snprintf(buffer, length, "");
         if (written<0 || written >= length - data.Pointer){
             data.Pointer+=written;
             data.ResultCode = 0;
             return data;
         }
         data.Pointer+=written;
+        data.ResultCode = 1;
+        */
         data.ResultCode = 1;
         return data;
     }
@@ -150,6 +153,7 @@ int SimplifyPolynomial(struct Polynomial* polynomial){
             num_unique++;
         }
     }
+
     free(polynomial->Values);
     polynomial->Values = unique_values;
     polynomial->NumValues = num_unique;
@@ -158,6 +162,7 @@ int SimplifyPolynomial(struct Polynomial* polynomial){
 }
 
 struct Polynomial* AddPolynomials(struct Polynomial* poly1, struct Polynomial* poly2){
+    if (!poly1 || !poly2) return NULL;
     struct Polynomial* result = malloc(sizeof(struct Polynomial));
     result->Simplified = 0;
     result->NumValues = poly1->NumValues + poly2->NumValues;
@@ -175,6 +180,7 @@ struct Polynomial* AddPolynomials(struct Polynomial* poly1, struct Polynomial* p
 }
 
 struct Polynomial* MultiplyPolynomials(struct Polynomial* poly1, struct Polynomial* poly2){
+    if (!poly1 || !poly2) return NULL;
     struct Polynomial* result = malloc(sizeof(struct Polynomial));
     result->Simplified = 0;
     result->NumValues = poly1->NumValues * poly2->NumValues;
@@ -210,6 +216,7 @@ struct ToStringResult PolynomialToString(struct Polynomial* poly, char* buffer, 
     }
 
     struct ToStringResult sub = AlgebraicValueToString(&poly->Values[0], buffer + data.Pointer, length - data.Pointer);
+
     if (!sub.ResultCode){return sub;}
     data.Pointer += sub.Pointer;
 
@@ -261,12 +268,6 @@ struct Polynomial* InterpretValue(char* buffer, int length){
         pointer += coefficient_len;
     }
     
-    //Current plan is:
-    //1. Iterate through buffer and whenever a letter is find write the index to a queue of ints
-    //2. For each letter check the indexes between itself and the next letter (or the end of the string if the queue is empty)
-    //3. Maybe add the read float logic into a new function
-    //4. Use letter to get index in vars and add float that gets read to the index.
-
     int first_var_index = pointer;
 
     struct qi_Node* var_indexes = malloc(sizeof(struct qi_Node));
@@ -274,7 +275,12 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     var_indexes->ValEmpty=1;
     
     int num_vars = 0;
-    while (pointer<length){
+    while (pointer<length){   
+        if(!isalnum(buffer[pointer]) && buffer[pointer]!='^' && buffer[pointer] != 0){
+            printf("Attempting to fail"); 
+            qi_Destroy(var_indexes);
+            return NULL;
+        }
         if(isalpha(buffer[pointer])){
             qi_Enqueue(var_indexes, pointer);
             num_vars++;
@@ -288,7 +294,11 @@ struct Polynomial* InterpretValue(char* buffer, int length){
         var_arr[i].Var = buffer[result.Val];
         if (result.NewRoot != var_indexes){
             var_indexes = result.NewRoot;
-            if(result.Code == 0) return NULL;
+            if(result.Code == 0){
+                free(var_arr);
+                qi_Destroy(var_indexes);
+                return NULL;
+            };
             if(i == 0){
                 if(result.Val!=first_var_index) return NULL;
             }
@@ -317,6 +327,101 @@ struct Polynomial* InterpretValue(char* buffer, int length){
     struct Polynomial* new_polynomial = CreateAlgebraicValue(coefficient, var_arr, num_vars);
     free(var_arr);
     return new_polynomial;
+}
+
+struct Polynomial* InterpretExpandedPolynomial(char* buffer, int length){
+    int num_pm = 0;
+    struct qi_Node* pm_indexes = malloc(sizeof(struct qi_Node));
+    //pm stands for plus or minuses
+    pm_indexes->Next = NULL;
+    pm_indexes->ValEmpty = 1;
+    
+
+    for (int i = 0; i < length; i++){
+        if (buffer[i] == '+' || buffer[i] == '-'){
+            qi_Enqueue(pm_indexes, i);
+            num_pm++;
+        }
+    }
+
+    struct llp_Node* vals = malloc(sizeof(struct llp_Node));
+    vals->next = NULL;
+    vals->length = 0;
+    vals->val = NULL;
+    
+    if (!pm_indexes->ValEmpty){
+        if(pm_indexes->Val != 0){
+            struct Polynomial* poly = InterpretValue(buffer, pm_indexes->Val);
+            llp_Push(vals, poly);
+        }
+        int filling_list = 1;
+        while(filling_list){
+            struct qi_DequeueResult dequeue_result = qi_Dequeue(pm_indexes);
+            pm_indexes = dequeue_result.NewRoot;
+            if (dequeue_result.Code){
+                if(pm_indexes->ValEmpty){
+                    llp_Push(vals, InterpretValue(buffer+dequeue_result.Val, length-dequeue_result.Val));
+                }else{
+                    llp_Push(vals, InterpretValue(buffer+dequeue_result.Val, pm_indexes->Val-dequeue_result.Val));
+                }
+            }else{
+                filling_list = 0;
+            }
+        }
+
+    }else{
+        free(vals);
+        return InterpretValue(buffer, length);
+    }
+    
+    struct Polynomial* result = CreateAlgebraicValue(0,NULL,0);
+    struct Polynomial* last_result;
+
+    for(int i = 0; i < vals->length+1; i++){//length + 1 should only be temp. Probably only needed due to a logic error in llp implementation.
+        last_result = result;
+
+        struct llp_GetResult get_result = llp_Get(vals, i);
+        if(get_result.Code && get_result.Val!=NULL){
+            result = AddPolynomials(result, get_result.Val);
+        }else{
+            llp_Destroy(vals);
+            DestroyPolynomial(last_result);
+            return NULL;
+        }
+
+        DestroyPolynomial(last_result);
+    }
+    //Make the simplify polynomial functyiom remove any 0 values
+    return result;
+}
+
+struct Polynomial* InterpretBrackets(char* buffer, int length) {
+    const char delimiters[] = "()";
+    char* token;
+    char* rest = buffer;
+
+    token = strtok(rest, delimiters);
+    if (token == NULL) return NULL;
+    
+    struct Polynomial* result = InterpretExpandedPolynomial(token, strlen(token));
+    if (!result) return NULL;
+    struct Polynomial* last_result;
+    
+    while ((token = strtok(NULL, delimiters)) != NULL) {
+        if (token == NULL || strlen(token) == 0) {
+            DestroyPolynomial(result);
+            return NULL;
+        }
+        last_result = result;
+        result = MultiplyPolynomials(result, InterpretExpandedPolynomial(token, strlen(token)));
+        if (!result) {
+            DestroyPolynomial(last_result); 
+            return NULL;
+        }
+        DestroyPolynomial(last_result);
+    }
+
+    return result;
 }
 
 /*

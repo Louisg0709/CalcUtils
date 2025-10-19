@@ -11,10 +11,14 @@ int main(){
     memset(buffer, 0, sizeof buffer);
     scanf("%s", buffer); //Apparently deprecated :-(
     //Really ought to find out the alternative to scan f.
-    struct Polynomial* test = InterpretValue(buffer, 200);
-    memset(buffer, 0, sizeof buffer);
-    if((PolynomialToString(test, buffer, 200)).ResultCode){
-        printf("%s\n", buffer);
+    struct Polynomial* test =  InterpretBrackets(buffer, 200);
+    if(!test){
+        printf("Failed to interpret string!\n");
+    }else{
+        memset(buffer, 0, sizeof buffer);
+        if((PolynomialToString(test, buffer, 200)).ResultCode){
+            printf("%s\n", buffer);
+        }
+        DestroyPolynomial(test);
     }
-    DestroyPolynomial(test);
 }

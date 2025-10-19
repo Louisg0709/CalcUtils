@@ -6,24 +6,24 @@
 //Data structures
 //So far all these data structures must be allocated dynamically!!!
 
-//linked list of floats
-struct llf_Node{
-    struct llf_Node* next;
-    float* val; //Why did i make this a fuckign pointer
-};
-
-void llf_Output(struct llf_Node* start);
-void llf_Push(struct llf_Node* start, float* new_val);
-void llf_Destroy(struct llf_Node* start); 
-
 //linked list of polynomials
 struct llp_Node{
     struct llp_Node* next;
     struct Polynomial* val;
+    int length;
+};
+
+struct llp_GetResult{
+    struct Polynomial* Val;
+    int Code;
+    int Direct;
 };
 
 void llp_Push(struct llp_Node* start, struct Polynomial* new_val);
 void llp_Destroy(struct llp_Node* start); 
+struct llp_GetResult llp_Pop(struct llp_Node* start);
+struct llp_GetResult llp_Get(struct llp_Node* start, int index);
+
 
 
 //Queue of ints

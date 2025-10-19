@@ -38,8 +38,8 @@ struct Polynomial* AddPolynomials(struct Polynomial* poly1, struct Polynomial* p
 struct Polynomial* MultiplyPolynomials(struct Polynomial* poly1, struct Polynomial* poly2);
 
 struct Polynomial* InterpretValue(char* buffer, int length);
-struct Polynomial* InterpretExpandedPolynomial(char* expression);
-struct Polynomial* InterpretBrackets(char* expression);
+struct Polynomial* InterpretExpandedPolynomial(char* buffer, int length);
+struct Polynomial* InterpretBrackets(char* buffer, int length);
 
 struct ToStringResult PolynomialToString(struct Polynomial* poly, char* buffer, size_t length);
 
